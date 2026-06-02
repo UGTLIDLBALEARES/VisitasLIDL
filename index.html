@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visitas LIDL Baleares — UGT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+:root {
+  --bg: #0e0f11;
+  --surface: #161719;
+  --surface2: #1e2024;
+  --surface3: #26282d;
+  --border: #2e3036;
+  --border2: #3a3d45;
+  --text: #e8e9eb;
+  --text2: #9a9da6;
+  --text3: #5c5f6b;
+  --accent: #00e07a;
+  --accent-dim: rgba(0,224,122,0.12);
+  --accent-mid: rgba(0,224,122,0.35);
+  --warn: #f59e0b;
+  --warn-dim: rgba(245,158,11,0.12);
+  --danger: #ef4444;
+  --danger-dim: rgba(239,68,68,0.12);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59,130,246,0.12);
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;overflow:hidden}
+
+/* ── LAYOUT ── */
+#app{display:grid;grid-template-rows:52px 1fr 52px;height:100vh}
+#main{display:grid;grid-template-columns:420px 1fr;overflow:hidden}
+#map-col{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
+#planning-col{display:flex;flex-direction:column;overflow:hidden}
+
+/* ── TOPBAR ── */
+#topbar{
+  display:flex;align-items:center;gap:12px;padding:0 16px;
+  border-bottom:1px solid var(--border);background:var(--surface);
+  font-family:var(--mono);
+}
+.logo-mark{
+  display:flex;align-items:center;gap:8px;margin-right:8px;
+}
+.logo-hex{
+  width:32px;height:32px;background:var(--accent);border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:600;font-size:14px;color:#000;
+  letter-spacing:-0.5px;flex-shrink:0;
+}
+.logo-title{font-size:12px;font-weight:600;color:var(--text);letter-spacing:0.08em;text-transform:uppercase}
+.logo-sub{font-size:10px;color:var(--text3);letter-spacing:0.04em}
+.sep{width:1px;height:24px;background:var(--border);flex-shrink:0}
+.top-stat{text-align:center;min-width:50px}
+.top-stat-n{font-size:18px;font-weight:600;font-family:var(--mono);line-height:1}
+.top-stat-l{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-top:2px}
+.top-stat-n.green{color:var(--accent)}
+.top-stat-n.warn{color:var(--warn)}
+.badge{
+  padding:3px 10px;border-radius:3px;font-family:var(--mono);font-size:10px;
+  font-weight:600;letter-spacing:0.06em;text-transform:uppercase;border:1px solid;
+}
+.badge-admin{background:var(--warn-dim);color:var(--warn);border-color:rgba(245,158,11,0.3)}
+.badge-pub{background:var(--blue-dim);color:var(--blue);border-color:rgba(59,130,246,0.3)}
+.badge-sync{background:var(--surface2);color:var(--text2);border-color:var(--border)}
+.badge-sync.ok{background:var(--accent-dim);color:var(--accent);border-color:var(--accent-mid)}
+.badge-sync.saving{background:var(--warn-dim);color:var(--warn);border-color:rgba(245,158,11,0.3)}
+.badge-sync.error{background:var(--danger-dim);color:var(--danger);border-color:rgba(239,68,68,0.3)}
+.ml-auto{margin-left:auto}
+.top-btn{
+  padding:6px 14px;border-radius:4px;border:1px solid var(--border2);
+  background:var(--surface2);color:var(--text);font-family:var(--mono);
+  font-size:11px;cursor:pointer;letter-spacing:0.04em;transition:all 0.15s;
+}
+.top-btn:hover{background:var(--surface3);border-color:var(--border2)}
+.top-btn.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent-mid)}
+#month-input{
+  padding:5px 10px;border-radius:4px;border:1px solid var(--border2);
+  background:var(--surface2);color:var(--text);font-family:var(--mono);
+  font-size:12px;cursor:pointer;
+}
+#month-input::-webkit-calendar-picker-indicator{filter:invert(1) opacity(0.4)}
+
+/* ── MAP COL ── */
+#map-header{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;
+}
+.col-label{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em}
+#map{flex:1;min-height:0}
+#del-panel{
+  height:220px;flex-shrink:0;border-top:1px solid var(--border);
+  background:var(--surface);display:flex;flex-direction:column;
+}
+#del-header{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+#del-body{flex:1;overflow-y:auto;padding:6px 8px}
+.del-row{
+  display:flex;align-items:center;gap:8px;padding:6px 6px;
+  border-radius:4px;margin-bottom:2px;cursor:default;
+  transition:background 0.1s;
+}
+.del-row:hover{background:var(--surface2)}
+.del-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.del-name{flex:1;font-size:12px;color:var(--text)}
+.del-count{
+  font-family:var(--mono);font-size:10px;color:var(--text3);
+  background:var(--surface3);padding:1px 7px;border-radius:10px;
+}
+.del-rm{
+  width:18px;height:18px;border-radius:3px;border:none;background:transparent;
+  color:var(--text3);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;
+  transition:all 0.1s;
+}
+.del-rm:hover{background:var(--danger-dim);color:var(--danger)}
+#add-del-form{
+  display:flex;gap:6px;padding:8px;border-top:1px solid var(--border);flex-shrink:0;
+}
+#new-del-input{
+  flex:1;padding:5px 9px;border-radius:4px;border:1px solid var(--border2);
+  background:var(--surface2);color:var(--text);font-family:var(--sans);font-size:12px;
+}
+#new-del-input::placeholder{color:var(--text3)}
+#new-del-input:focus{outline:none;border-color:var(--accent)}
+.btn-add{
+  padding:5px 12px;border-radius:4px;border:none;background:var(--accent);
+  color:#000;font-weight:700;font-size:14px;cursor:pointer;transition:opacity 0.15s;
+}
+.btn-add:hover{opacity:0.85}
+
+/* ── PLANNING COL ── */
+#plan-header{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;
+}
+#filter-del{
+  padding:4px 8px;border-radius:4px;border:1px solid var(--border2);
+  background:var(--surface2);color:var(--text);font-family:var(--mono);font-size:11px;
+}
+#plan-wrap{flex:1;overflow:auto;position:relative}
+
+/* ── PLANNING GRID ── */
+#plan-grid{
+  display:grid;
+  border-top:1px solid var(--border);
+  min-width:max-content;
+}
+.plan-head-row{
+  display:contents;
+  position:sticky;top:0;z-index:10;
+}
+.ph-corner{
+  position:sticky;left:0;top:0;z-index:20;
+  background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--border2);
+  padding:6px 10px;font-family:var(--mono);font-size:10px;color:var(--text3);
+  text-transform:uppercase;letter-spacing:0.08em;white-space:nowrap;min-width:160px;
+}
+.ph-day{
+  background:var(--surface);border-bottom:1px solid var(--border2);border-right:1px solid var(--border);
+  padding:4px 2px;text-align:center;min-width:38px;
+  position:sticky;top:0;z-index:10;
+}
+.ph-day-n{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--text)}
+.ph-day-w{font-size:9px;color:var(--text3);text-transform:uppercase}
+.ph-day.today{background:var(--accent-dim)}
+.ph-day.today .ph-day-n{color:var(--accent)}
+.ph-day.weekend .ph-day-n{color:var(--text3)}
+
+.plan-row{display:contents}
+.pr-name{
+  position:sticky;left:0;z-index:5;
+  background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:5px 10px;white-space:nowrap;
+  display:flex;align-items:center;gap:8px;min-width:160px;
+}
+.pr-name-text{font-size:12px;font-weight:500;color:var(--text);flex:1}
+.pr-code{font-family:var(--mono);font-size:9px;color:var(--text3)}
+.pr-row-odd .pr-name{background:var(--surface2)}
+
+.pc{
+  border-bottom:1px solid var(--border);border-right:1px solid var(--border);
+  min-width:38px;height:38px;position:relative;cursor:pointer;
+  transition:background 0.1s;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  padding:2px;
+}
+.pc:hover{background:var(--surface3)}
+.pc.weekend{background:rgba(0,0,0,0.15)}
+.pc.weekend:hover{background:var(--surface3)}
+.pr-row-odd .pc{background:rgba(255,255,255,0.01)}
+.pr-row-odd .pc.weekend{background:rgba(0,0,0,0.2)}
+.pr-row-odd .pc:hover{background:var(--surface3)}
+
+/* visit chips inside cell */
+.vc{
+  width:28px;height:9px;border-radius:2px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:7px;font-weight:700;color:#000;letter-spacing:0.02em;
+  position:relative;overflow:hidden;flex-shrink:0;
+}
+.vc.done::after{
+  content:'✓';position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;font-size:8px;background:rgba(0,0,0,0.25);color:#fff;
+}
+
+/* ── BOTTOMBAR ── */
+#bottombar{
+  display:flex;align-items:center;gap:12px;padding:0 16px;
+  border-top:1px solid var(--border);background:var(--surface);
+  font-family:var(--mono);font-size:10px;color:var(--text3);
+}
+.bottom-stat{display:flex;align-items:center;gap:5px}
+.bs-dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.bs-dot.warn{background:var(--warn)}
+
+/* ── MODAL ── */
+#modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);
+  z-index:1000;display:none;align-items:center;justify-content:center;
+}
+#modal-overlay.open{display:flex}
+#modal{
+  background:var(--surface);border:1px solid var(--border2);border-radius:8px;
+  width:380px;max-width:95vw;overflow:hidden;
+  box-shadow:0 24px 64px rgba(0,0,0,0.6);
+}
+.modal-head{
+  padding:14px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:flex-start;gap:10px;
+}
+.modal-head-ico{
+  width:36px;height:36px;border-radius:6px;background:var(--accent-dim);
+  border:1px solid var(--accent-mid);display:flex;align-items:center;justify-content:center;
+  font-size:16px;flex-shrink:0;
+}
+.modal-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px}
+.modal-sub{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.modal-body{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.modal-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px}
+.modal-visits{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto}
+.mv{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;
+  border-radius:5px;border:1px solid var(--border);background:var(--surface2);
+}
+.mv-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.mv-name{flex:1;font-size:12px;font-weight:500}
+.mv-check{
+  display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);cursor:pointer;
+}
+.mv-check input{accent-color:var(--accent);width:14px;height:14px}
+.mv-check.done{color:var(--accent);font-weight:600}
+.mv-rm{
+  width:20px;height:20px;border-radius:3px;border:none;background:transparent;
+  color:var(--text3);cursor:pointer;font-size:13px;transition:all 0.1s;
+  display:flex;align-items:center;justify-content:center;
+}
+.mv-rm:hover{background:var(--danger-dim);color:var(--danger)}
+.modal-add{display:flex;gap:6px}
+.modal-sel{
+  flex:1;padding:7px 10px;border-radius:5px;border:1px solid var(--border2);
+  background:var(--surface2);color:var(--text);font-family:var(--sans);font-size:12px;
+}
+.modal-sel:focus{outline:none;border-color:var(--accent)}
+.btn-modal-add{
+  padding:7px 14px;border-radius:5px;border:none;background:var(--accent);
+  color:#000;font-weight:700;font-size:12px;cursor:pointer;transition:opacity 0.15s;white-space:nowrap;
+}
+.btn-modal-add:hover{opacity:0.85}
+.modal-foot{
+  padding:10px 16px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:8px;
+}
+.btn-close{
+  padding:7px 16px;border-radius:5px;border:1px solid var(--border2);
+  background:transparent;color:var(--text2);font-family:var(--mono);
+  font-size:11px;cursor:pointer;transition:all 0.15s;
+}
+.btn-close:hover{background:var(--surface2)}
+.empty-msg{font-size:12px;color:var(--text3);padding:8px 0;font-style:italic}
+
+/* ── LEAFLET DARK ── */
+.leaflet-tile-pane{filter:brightness(0.45) saturate(0.3)}
+.leaflet-popup-content-wrapper{
+  background:var(--surface)!important;border:1px solid var(--border2)!important;
+  border-radius:8px!important;box-shadow:0 8px 32px rgba(0,0,0,0.5)!important;
+  color:var(--text)!important;
+}
+.leaflet-popup-tip{background:var(--surface2)!important}
+.leaflet-popup-close-button{color:var(--text3)!important}
+
+/* ── SCROLLBARS ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <div class="logo-mark">
+      <div class="logo-hex">U</div>
+      <div>
+        <div class="logo-title">Visitas LIDL · BAL</div>
+        <div class="logo-sub">FeSMC UGT Baleares</div>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <span class="badge badge-admin" id="badge-modo">ADMIN</span>
+    <span class="badge badge-sync" id="badge-sync">Conectando...</span>
+    <div class="sep"></div>
+    <div class="top-stat">
+      <div class="top-stat-n warn" id="st-pend">31</div>
+      <div class="top-stat-l">pendientes</div>
+    </div>
+    <div class="top-stat">
+      <div class="top-stat-n" id="st-asig">0</div>
+      <div class="top-stat-l">asignadas</div>
+    </div>
+    <div class="top-stat">
+      <div class="top-stat-n green" id="st-visit">0</div>
+      <div class="top-stat-l">visitadas</div>
+    </div>
+    <div class="sep"></div>
+    <input type="month" id="month-input">
+    <div class="ml-auto" style="display:flex;gap:8px;align-items:center">
+      <button class="top-btn" id="btn-modo" onclick="toggleModo()">Vista pública</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- MAP COL -->
+    <div id="map-col">
+      <div id="map-header">
+        <span class="col-label">🗺 Mapa</span>
+        <select class="badge badge-sync" id="filtro-del" style="border:none;cursor:pointer;font-size:10px" onchange="applyFilter();buildPlanning()">
+          <option value="">Todos los delegados</option>
+        </select>
+      </div>
+      <div id="map"></div>
+      <div id="del-panel">
+        <div id="del-header">
+          <span class="col-label">👥 Delegados</span>
+        </div>
+        <div id="del-body"></div>
+        <div id="add-del-form">
+          <input id="new-del-input" placeholder="Nombre del delegado/a..." maxlength="30"
+            onkeydown="if(event.key==='Enter')addDelegado()">
+          <button class="btn-add" onclick="addDelegado()">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PLANNING COL -->
+    <div id="planning-col">
+      <div id="plan-header">
+        <span class="col-label">📅 Planning mensual</span>
+        <span id="plan-month-label" style="font-family:var(--mono);font-size:11px;color:var(--text2);margin-left:4px"></span>
+        <div class="ml-auto" style="display:flex;gap:6px;align-items:center;font-size:10px;color:var(--text3)">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:var(--accent);display:inline-block"></span>Visitada</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#378ADD;display:inline-block"></span>Asignada</span>
+        </div>
+      </div>
+      <div id="plan-wrap">
+        <div id="plan-grid"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOMBAR -->
+  <div id="bottombar">
+    <div class="bottom-stat"><div class="bs-dot"></div><span id="bs-visit">0 visitas confirmadas este mes</span></div>
+    <div class="bottom-stat"><div class="bs-dot warn"></div><span id="bs-pend">31 tiendas sin asignación</span></div>
+    <div class="ml-auto" id="bs-last" style="color:var(--text3)">—</div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div id="modal">
+    <div class="modal-head">
+      <div class="modal-head-ico">🏪</div>
+      <div>
+        <div class="modal-title" id="modal-title">Tienda</div>
+        <div class="modal-sub" id="modal-sub">—</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div>
+        <div class="modal-label">Visitas asignadas este día</div>
+        <div class="modal-visits" id="modal-visits"></div>
+      </div>
+      <div id="modal-add-wrap">
+        <div class="modal-label">Añadir visita</div>
+        <div class="modal-add">
+          <select class="modal-sel" id="modal-del-sel">
+            <option value="">Seleccionar delegado/a...</option>
+          </select>
+          <button class="btn-modal-add" onclick="addVisitFromModal()">Añadir</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-close" onclick="closeModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ═══════════════════════════════════════════════
+const API = "https://script.google.com/macros/s/AKfycbwFkJZojeZR0XnCh8Kjpsi_PN6raiBoK5uRXpydTPfkUrZygjCf-Sy0Ql2Fd1FBFF9ejQ/exec";
+// ═══════════════════════════════════════════════
+
+const TIENDAS = [
+  {id:272, name:"Cas Capiscol",      lat:39.592, lng:2.667},
+  {id:2025,name:"Campos",            lat:39.427, lng:3.018},
+  {id:2063,name:"Marratxí",          lat:39.608, lng:2.745},
+  {id:2038,name:"Paguera",           lat:39.536, lng:2.462},
+  {id:2146,name:"Magaluf",           lat:39.510, lng:2.527},
+  {id:931, name:"Ciutadella",        lat:40.002, lng:3.833},
+  {id:2080,name:"Mahon",             lat:39.888, lng:4.261},
+  {id:2034,name:"Sa Pobla",          lat:39.767, lng:3.017},
+  {id:2115,name:"Can Picafort",      lat:39.762, lng:3.159},
+  {id:361, name:"Inca",              lat:39.719, lng:2.910},
+  {id:2003,name:"Alcudia",           lat:39.852, lng:3.121},
+  {id:2027,name:"Pollença",          lat:39.878, lng:3.014},
+  {id:2158,name:"Inca II",           lat:39.725, lng:2.906},
+  {id:280, name:"Palmanova",         lat:39.525, lng:2.540},
+  {id:2045,name:"La Vileta",         lat:39.580, lng:2.629},
+  {id:2061,name:"Can Domenge",       lat:39.568, lng:2.660},
+  {id:2024,name:"Felanitx",          lat:39.469, lng:3.149},
+  {id:2068,name:"Santanyí",          lat:39.361, lng:3.127},
+  {id:2155,name:"Manacor Academy",   lat:39.709, lng:3.210},
+  {id:295, name:"Son Fuster",        lat:39.596, lng:2.683},
+  {id:2075,name:"Can Bufí",          lat:39.571, lng:2.636},
+  {id:2132,name:"Av. Méjico",        lat:39.563, lng:2.648},
+  {id:2136,name:"Aragón",            lat:39.574, lng:2.657},
+  {id:291, name:"Manacor",           lat:39.706, lng:3.218},
+  {id:919, name:"Capdepera",         lat:39.710, lng:3.437},
+  {id:932, name:"Cala Millor",       lat:39.597, lng:3.384},
+  {id:910, name:"Sant Antoni",       lat:38.980, lng:1.300},
+  {id:2057,name:"Ibiza",             lat:38.909, lng:1.430},
+  {id:2033,name:"Palma-Ikea",        lat:39.601, lng:2.720},
+  {id:2079,name:"Arenal",            lat:39.506, lng:2.737},
+  {id:2094,name:"Cardenal Rossell",  lat:39.545, lng:2.696},
+];
+
+const PALETTE = ["#378ADD","#D85A30","#D4537E","#7F77DD","#BA7517","#E24B4A","#00b894","#6C5CE7","#fd79a8","#00cec9","#e17055","#74b9ff","#a29bfe","#55efc4","#fdcb6e","#636e72"];
+
+// ─── STATE ───
+let modo = "admin";
+let mes = "";       // "YYYY-MM"
+let data = {};      // { "YYYY-MM-DD": { storeId: [{del, done},...] } }
+let delegados = [];
+let markers = {};
+let map;
+let saveTimer = null;
+let modalCtx = null; // {storeId, dateStr}
+
+// ─── HELPERS ───
+const color = n => { const i = delegados.indexOf(n); return i >= 0 ? PALETTE[i % PALETTE.length] : "#555"; };
+const tc = bg => { const r=parseInt(bg.slice(1,3),16),g=parseInt(bg.slice(3,5),16),b=parseInt(bg.slice(5,7),16); return (r*299+g*587+b*114)/1000>145?"#000":"#fff"; };
+const gm = () => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; };
+const daysInMonth = (ym) => { const [y,m]=ym.split('-'); return new Date(+y,+m,0).getDate(); };
+const dayOfWeek = (dateStr) => new Date(dateStr+'T00:00:00').getDay(); // 0=sun
+const isWeekend = (dateStr) => { const d=dayOfWeek(dateStr); return d===0||d===6; };
+const isToday = (dateStr) => dateStr === new Date().toISOString().slice(0,10);
+const DAYS_ES = ['Do','Lu','Ma','Mi','Ju','Vi','Sá'];
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+const sbadge = (state, msg) => {
+  const b = document.getElementById('badge-sync');
+  b.textContent = msg;
+  b.className = 'badge badge-sync' + (state ? ' ' + state : '');
+};
+const apiGet = async p => { const r = await fetch(API+'?'+new URLSearchParams(p)); return r.json(); };
+const apiPost = async d => { const r = await fetch(API, {method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(d)}); return r.json(); };
+
+// ─── DATA ───
+async function loadData() {
+  sbadge('', 'Cargando...');
+  try {
+    const [rd, ra] = await Promise.all([
+      apiGet({action:'getDelegados'}),
+      apiGet({action:'getMes', mes})
+    ]);
+    delegados = rd.delegados || delegados;
+    data = ra.data || {};
+    sbadge('ok', 'Sheets ✓');
+  } catch {
+    sbadge('error', 'Modo local');
+    const ld = localStorage.getItem('del');
+    const la = localStorage.getItem('m_' + mes);
+    if (ld) delegados = JSON.parse(ld);
+    if (la) data = JSON.parse(la);
+  }
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  sbadge('saving', 'Guardando...');
+  saveTimer = setTimeout(async () => {
+    localStorage.setItem('m_' + mes, JSON.stringify(data));
+    localStorage.setItem('del', JSON.stringify(delegados));
+    try {
+      await Promise.all([
+        apiPost({action:'saveMes', mes, data}),
+        apiPost({action:'saveDelegados', delegados})
+      ]);
+      sbadge('ok', 'Guardado ✓');
+      document.getElementById('bs-last').textContent = 'Último guardado: ' + new Date().toLocaleTimeString('es-ES');
+    } catch {
+      sbadge('error', 'Local (sin red)');
+    }
+  }, 1500);
+}
+
+// ─── VISITS HELPERS ───
+function getVisits(dateStr, storeId) {
+  return (data[dateStr] && data[dateStr][storeId]) ? data[dateStr][storeId] : [];
+}
+function setVisits(dateStr, storeId, visits) {
+  if (!data[dateStr]) data[dateStr] = {};
+  if (visits.length === 0) { delete data[dateStr][storeId]; if (!Object.keys(data[dateStr]).length) delete data[dateStr]; }
+  else data[dateStr][storeId] = visits;
+}
+
+// ─── STATS ───
+function updateStats() {
+  const days = getDaysOfMonth();
+  let totalVisits = 0, visitedCount = 0;
+  const assignedStores = new Set();
+  days.forEach(d => {
+    if (!data[d]) return;
+    Object.entries(data[d]).forEach(([sid, visits]) => {
+      if (visits && visits.length) assignedStores.add(sid);
+      visits.forEach(v => { totalVisits++; if (v.done) visitedCount++; });
+    });
+  });
+  const asig = assignedStores.size;
+  document.getElementById('st-asig').textContent = totalVisits;
+  document.getElementById('st-pend').textContent = 31 - asig;
+  document.getElementById('st-visit').textContent = visitedCount;
+  document.getElementById('bs-visit').textContent = visitedCount + ' visitas confirmadas este mes';
+  document.getElementById('bs-pend').textContent = (31 - asig) + ' tiendas sin asignación';
+}
+
+function getDaysOfMonth() {
+  const [y, m] = mes.split('-');
+  const n = daysInMonth(mes);
+  const days = [];
+  for (let i = 1; i <= n; i++) days.push(`${y}-${m}-${String(i).padStart(2,'0')}`);
+  return days;
+}
+
+// ─── MAP ───
+function makeIcon(t) {
+  const days = getDaysOfMonth();
+  const allVisits = [];
+  days.forEach(d => { getVisits(d, t.id).forEach(v => allVisits.push(v)); });
+  const dones = allVisits.filter(v => v.done).length;
+  const total = allVisits.length;
+  const dels = [...new Set(allVisits.map(v => v.del))];
+
+  if (!total) {
+    return L.divIcon({
+      html:`<svg xmlns='http://www.w3.org/2000/svg' width='24' height='30' viewBox='0 0 24 30'><path d='M12 0C5.373 0 0 5.373 0 12c0 7.667 12 18 12 18S24 19.667 24 12C24 5.373 18.627 0 12 0z' fill='#2e3036' stroke='#3a3d45' stroke-width='1.5'/></svg>`,
+      iconSize:[24,30],iconAnchor:[12,30],popupAnchor:[0,-32],className:''
+    });
+  }
+  const c = color(dels[0]);
+  const ck = dones > 0 ? `<text x='12' y='16' text-anchor='middle' font-size='10' fill='white' font-weight='bold'>✓</text>` : '';
+  const badge = total > 1 ? `<circle cx='20' cy='4' r='6' fill='#f59e0b'/><text x='20' y='8' text-anchor='middle' font-size='8' fill='#000' font-weight='bold'>${total}</text>` : '';
+  return L.divIcon({
+    html:`<svg xmlns='http://www.w3.org/2000/svg' width='28' height='34' viewBox='0 0 28 34'><path d='M14 0C6.268 0 0 6.268 0 14c0 8.837 14 20 14 20S28 22.837 28 14C28 6.268 21.732 0 14 0z' fill='${c}' stroke='${dones===total&&total>0?"#00e07a":"#fff"}' stroke-width='${dones===total&&total>0?3:1.5}'/>${ck}${badge}</svg>`,
+    iconSize:[28,34],iconAnchor:[14,34],popupAnchor:[0,-36],className:''
+  });
+}
+
+function popupHtml(t) {
+  const days = getDaysOfMonth();
+  const rows = [];
+  days.forEach(d => {
+    const vs = getVisits(d, t.id);
+    vs.forEach(v => {
+      const c = color(v.del);
+      rows.push(`<div style='display:flex;align-items:center;gap:7px;margin-bottom:5px'>
+        <span style='width:8px;height:8px;border-radius:2px;background:${c};flex-shrink:0;display:inline-block'></span>
+        <span style='font-size:11px;flex:1'>${v.del}</span>
+        <span style='font-size:10px;color:#5c5f6b'>${d.slice(8)}</span>
+        ${v.done?`<span style='font-size:10px;color:#00e07a;font-weight:700'>✓</span>`:`<span style='font-size:10px;color:#5c5f6b'>pdte</span>`}
+      </div>`);
+    });
+  });
+  return `<div style='min-width:180px;font-family:IBM Plex Sans,system-ui,sans-serif;background:#161719;padding:2px'>
+    <div style='font-weight:700;font-size:13px;color:#e8e9eb;margin-bottom:2px'>${t.name}</div>
+    <div style='font-size:10px;color:#5c5f6b;font-family:IBM Plex Mono,monospace;margin-bottom:10px'>CÓD. ${t.id}</div>
+    ${rows.length ? rows.join('') : '<div style="font-size:11px;color:#5c5f6b">Sin visitas asignadas este mes</div>'}
+  </div>`;
+}
+
+function initMap() {
+  map = L.map('map').setView([39.65, 2.95], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'© OSM', maxZoom:19}).addTo(map);
+  TIENDAS.forEach(t => {
+    const m = L.marker([t.lat, t.lng], {icon: makeIcon(t)}).addTo(map);
+    m.bindPopup(popupHtml(t));
+    markers[t.id] = m;
+  });
+}
+
+function refreshMarkers() {
+  TIENDAS.forEach(t => {
+    if (!markers[t.id]) return;
+    markers[t.id].setIcon(makeIcon(t));
+    markers[t.id].setPopupContent(popupHtml(t));
+  });
+  applyFilter();
+}
+
+function applyFilter() {
+  const f = document.getElementById('filtro-del').value;
+  const days = getDaysOfMonth();
+  TIENDAS.forEach(t => {
+    const hasDel = !f || days.some(d => getVisits(d, t.id).some(v => v.del === f));
+    markers[t.id]?.setOpacity(hasDel ? 1 : 0.15);
+  });
+}
+
+// ─── DELEGADOS ───
+function buildDelList() {
+  const days = getDaysOfMonth();
+  document.getElementById('del-body').innerHTML = delegados.map((d, i) => {
+    const c = PALETTE[i % PALETTE.length];
+    const cnt = days.reduce((acc, day) => {
+      return acc + TIENDAS.filter(t => getVisits(day, t.id).some(v => v.del === d)).length;
+    }, 0);
+    const rmBtn = modo === 'admin' ? `<button class='del-rm' onclick='removeDelegado("${d}")'title='Eliminar'>✕</button>` : '';
+    return `<div class='del-row'>
+      <div class='del-dot' style='background:${c}'></div>
+      <span class='del-name'>${d}</span>
+      <span class='del-count'>${cnt} asig.</span>
+      ${rmBtn}
+    </div>`;
+  }).join('');
+  document.getElementById('add-del-form').style.display = modo === 'admin' ? 'flex' : 'none';
+
+  const sel = document.getElementById('filtro-del');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Todos los delegados</option>' +
+    delegados.map(d => `<option value='${d}'${d===prev?' selected':''}>${d}</option>`).join('');
+  sel.onchange = () => { applyFilter(); buildPlanning(); };
+
+  const msel = document.getElementById('modal-del-sel');
+  if (msel) {
+    msel.innerHTML = '<option value="">Seleccionar delegado/a...</option>' +
+      delegados.map(d => `<option value='${d}'>${d}</option>`).join('');
+  }
+}
+
+function addDelegado() {
+  const inp = document.getElementById('new-del-input');
+  const name = inp.value.trim();
+  if (!name || delegados.includes(name)) return;
+  delegados.push(name);
+  inp.value = '';
+  buildDelList();
+  buildPlanning();
+  scheduleSave();
+}
+
+function removeDelegado(name) {
+  if (!confirm(`¿Eliminar a ${name}? Se quitará de todas las visitas asignadas.`)) return;
+  delegados = delegados.filter(d => d !== name);
+  // Remove from all visits
+  Object.keys(data).forEach(day => {
+    Object.keys(data[day]).forEach(sid => {
+      data[day][sid] = data[day][sid].filter(v => v.del !== name);
+      if (!data[day][sid].length) delete data[day][sid];
+    });
+    if (!Object.keys(data[day]).length) delete data[day];
+  });
+  buildDelList();
+  buildPlanning();
+  refreshMarkers();
+  updateStats();
+  scheduleSave();
+}
+
+// ─── PLANNING ───
+function buildPlanning() {
+  const days = getDaysOfMonth();
+  const f = document.getElementById('filtro-del').value;
+  const [y, m] = mes.split('-');
+  document.getElementById('plan-month-label').textContent = `${MONTHS_ES[+m-1]} ${y}`;
+
+  const cols = days.length + 1;
+  const grid = document.getElementById('plan-grid');
+  grid.style.gridTemplateColumns = `160px repeat(${days.length}, 38px)`;
+  grid.innerHTML = '';
+
+  // Header row
+  const corner = document.createElement('div');
+  corner.className = 'ph-corner';
+  corner.textContent = 'Tienda / Día';
+  grid.appendChild(corner);
+
+  days.forEach(d => {
+    const dow = dayOfWeek(d);
+    const cell = document.createElement('div');
+    cell.className = 'ph-day' + (isWeekend(d) ? ' weekend' : '') + (isToday(d) ? ' today' : '');
+    cell.innerHTML = `<div class='ph-day-n'>${+d.slice(8)}</div><div class='ph-day-w'>${DAYS_ES[dow]}</div>`;
+    grid.appendChild(cell);
+  });
+
+  // Store rows
+  TIENDAS.forEach((t, ri) => {
+    const oddClass = ri % 2 === 1 ? 'pr-row-odd' : '';
+
+    const nameCell = document.createElement('div');
+    nameCell.className = `pr-name ${oddClass}`;
+    nameCell.innerHTML = `<div class='pr-name-text'>${t.name}</div><div class='pr-code'>${t.id}</div>`;
+    grid.appendChild(nameCell);
+
+    days.forEach(d => {
+      const visits = getVisits(d, t.id).filter(v => !f || v.del === f);
+      const cell = document.createElement('div');
+      cell.className = `pc ${oddClass}` + (isWeekend(d) ? ' weekend' : '');
+      cell.title = `${t.name} · ${d}`;
+
+      visits.slice(0, 4).forEach(v => {
+        const chip = document.createElement('div');
+        chip.className = 'vc' + (v.done ? ' done' : '');
+        chip.style.background = color(v.del);
+        chip.title = v.del + (v.done ? ' ✓' : '');
+        cell.appendChild(chip);
+      });
+
+      if (modo === 'admin') {
+        cell.onclick = () => openModal(t, d);
+      } else {
+        // Public: click to confirm visit if only one visit and not done
+        const allVisits = getVisits(d, t.id);
+        if (allVisits.length === 1 && !allVisits[0].done) {
+          cell.onclick = () => confirmVisitPublic(t, d, 0);
+        } else if (allVisits.length > 0) {
+          cell.onclick = () => openModalPublic(t, d);
+        }
+      }
+
+      grid.appendChild(cell);
+    });
+  });
+}
+
+// ─── MODAL (ADMIN) ───
+function openModal(t, dateStr) {
+  modalCtx = {storeId: t.id, dateStr};
+  document.getElementById('modal-title').textContent = t.name;
+  document.getElementById('modal-sub').textContent = `CÓD. ${t.id}  ·  ${dateStr}`;
+  document.getElementById('modal-add-wrap').style.display = modo === 'admin' ? 'block' : 'none';
+  renderModalVisits();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function openModalPublic(t, dateStr) {
+  modalCtx = {storeId: t.id, dateStr};
+  document.getElementById('modal-title').textContent = t.name;
+  document.getElementById('modal-sub').textContent = `CÓD. ${t.id}  ·  ${dateStr}`;
+  document.getElementById('modal-add-wrap').style.display = 'none';
+  renderModalVisits();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function renderModalVisits() {
+  const {storeId, dateStr} = modalCtx;
+  const visits = getVisits(dateStr, storeId);
+  const container = document.getElementById('modal-visits');
+
+  if (!visits.length) {
+    container.innerHTML = `<div class='empty-msg'>Sin visitas asignadas para este día.</div>`;
+    return;
+  }
+
+  container.innerHTML = visits.map((v, i) => {
+    const c = color(v.del);
+    const doneLabel = v.done
+      ? `<label class='mv-check done'><input type='checkbox' checked onchange='toggleDone(${i})'> Visitada ✓</label>`
+      : `<label class='mv-check'><input type='checkbox' onchange='toggleDone(${i})'> Confirmar visita</label>`;
+    const rmBtn = modo === 'admin'
+      ? `<button class='mv-rm' onclick='removeVisit(${i})' title='Eliminar'>✕</button>` : '';
+    return `<div class='mv'>
+      <div class='mv-dot' style='background:${c}'></div>
+      <span class='mv-name'>${v.del}</span>
+      ${doneLabel}
+      ${rmBtn}
+    </div>`;
+  }).join('');
+}
+
+function addVisitFromModal() {
+  const sel = document.getElementById('modal-del-sel');
+  const del = sel.value;
+  if (!del || !modalCtx) return;
+  const {storeId, dateStr} = modalCtx;
+  const visits = getVisits(dateStr, storeId);
+  visits.push({del, done: false});
+  setVisits(dateStr, storeId, visits);
+  sel.value = '';
+  renderModalVisits();
+  buildPlanning();
+  refreshMarkers();
+  buildDelList();
+  updateStats();
+  scheduleSave();
+}
+
+function removeVisit(idx) {
+  const {storeId, dateStr} = modalCtx;
+  const visits = getVisits(dateStr, storeId);
+  visits.splice(idx, 1);
+  setVisits(dateStr, storeId, visits);
+  renderModalVisits();
+  buildPlanning();
+  refreshMarkers();
+  buildDelList();
+  updateStats();
+  scheduleSave();
+}
+
+function toggleDone(idx) {
+  const {storeId, dateStr} = modalCtx;
+  const visits = getVisits(dateStr, storeId);
+  visits[idx].done = !visits[idx].done;
+  setVisits(dateStr, storeId, visits);
+  renderModalVisits();
+  buildPlanning();
+  refreshMarkers();
+  updateStats();
+  scheduleSave();
+}
+
+function confirmVisitPublic(t, dateStr, idx) {
+  const visits = getVisits(dateStr, t.id);
+  if (!visits[idx]) return;
+  visits[idx].done = true;
+  setVisits(dateStr, t.id, visits);
+  buildPlanning();
+  refreshMarkers();
+  updateStats();
+  scheduleSave();
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+  modalCtx = null;
+}
+
+// ─── MODO ───
+function toggleModo() {
+  if (modo === "pub") {
+    const pass = prompt("Contraseña de administrador:");
+    if (pass !== "1234lidlugt") { alert("Contraseña incorrecta."); return; }
+  }
+  modo = modo === 'admin' ? 'pub' : 'admin';
+  const isAdmin = modo === 'admin';
+  document.getElementById('badge-modo').textContent = isAdmin ? 'ADMIN' : 'PÚBLICO';
+  document.getElementById('badge-modo').className = 'badge ' + (isAdmin ? 'badge-admin' : 'badge-pub');
+  document.getElementById('btn-modo').textContent = isAdmin ? 'Vista pública' : 'Modo admin';
+  buildDelList();
+  buildPlanning();
+}
+
+// ─── MES CHANGE ───
+async function onMesChange() {
+  mes = document.getElementById('month-input').value;
+  await loadData();
+  refreshMarkers();
+  buildDelList();
+  buildPlanning();
+  updateStats();
+}
+
+// ─── INIT ───
+document.addEventListener('DOMContentLoaded', async () => {
+  mes = gm();
+  document.getElementById('month-input').value = mes;
+  document.getElementById('month-input').onchange = onMesChange;
+  await loadData();
+  initMap();
+  buildDelList();
+  buildPlanning();
+  updateStats();
+});
+</script>
+</body>
+</html>
